@@ -55,8 +55,8 @@ class StageController extends Controller
         }
     }
 
-    // ✅ LOGIC MỚI: Chỉ kiểm tra các công đoạn có set thời gian
-    $allStages = $order->stages()
+    // ✅ LOGIC MỚI: Kiểm tra các công đoạn có set thời gian
+    $stagesWithTime = $order->stages()
         ->where('is_skipped', false)
         ->where(function($q) {
             $q->whereNotNull('planned_start')
@@ -64,17 +64,25 @@ class StageController extends Controller
         })
         ->get();
 
-    // ✅ Nếu KHÔNG có công đoạn nào → không thể hoàn thành đơn
-    if ($allStages->isEmpty()) {
-        $order->status = 'in_progress';
-        $order->actual_end = null;
-        $order->completed_at = null;
-        $order->save();
-        return $stage->fresh();
-    }
+    // ✅ TH1: Nếu KHÔNG có công đoạn nào set thời gian → kiểm tra TẤT CẢ công đoạn
+    if ($stagesWithTime->isEmpty()) {
+        $allStages = $order->stages()->where('is_skipped', false)->get();
 
-    // ✅ Kiểm tra xem TẤT CẢ công đoạn có set thời gian đã done chưa
-    $allDone = $allStages->every(fn($s) => $s->status === 'done');
+        if ($allStages->isEmpty()) {
+            // Không có công đoạn nào
+            $order->status = 'in_progress';
+            $order->actual_end = null;
+            $order->completed_at = null;
+            $order->save();
+            return $stage->fresh();
+        }
+
+        // Kiểm tra TẤT CẢ công đoạn đã done chưa
+        $allDone = $allStages->every(fn($s) => $s->status === 'done');
+    } else {
+        // ✅ TH2: Có công đoạn set thời gian → chỉ kiểm tra các công đoạn có thời gian
+        $allDone = $stagesWithTime->every(fn($s) => $s->status === 'done');
+    }
 
     if ($allDone) {
         // ✅ TẤT CẢ công đoạn đã xong → Đơn hàng hoàn thành
@@ -90,9 +98,13 @@ class StageController extends Controller
             $history = json_decode($history, true) ?? [];
         }
 
+        $logMessage = $stagesWithTime->isEmpty()
+            ? '✅ Đơn hàng đã hoàn thành (tất cả công đoạn đã xong)'
+            : '✅ Đơn hàng đã hoàn thành (tất cả công đoạn có set thời gian đã xong)';
+
         $history[] = [
             'editor' => $req->user()->name ?? 'Hệ thống',
-            'change' => '✅ Đơn hàng đã hoàn thành (tất cả công đoạn có set thời gian đã xong)',
+            'change' => $logMessage,
             'date'   => now()->format('Y-m-d H:i:s'),
         ];
 
@@ -243,8 +255,8 @@ class StageController extends Controller
 }
 private function updateOrderStatus(Order $order)
 {
-    // ✅ Chỉ lấy các công đoạn có set thời gian
-    $stages = $order->stages()
+    // ✅ Lấy các công đoạn có set thời gian
+    $stagesWithTime = $order->stages()
         ->where('is_skipped', false)
         ->where(function($q) {
             $q->whereNotNull('planned_start')
@@ -252,28 +264,54 @@ private function updateOrderStatus(Order $order)
         })
         ->get();
 
-    if ($stages->isEmpty()) {
-        return; // Không có công đoạn có thời gian → không làm gì
-    }
+    // ✅ TH1: Nếu KHÔNG có công đoạn nào set thời gian → kiểm tra TẤT CẢ công đoạn
+    if ($stagesWithTime->isEmpty()) {
+        $allStages = $order->stages()->where('is_skipped', false)->get();
 
-    // Đếm số công đoạn có set thời gian đã hoàn thành (status = 'done')
-    $completedStages = $stages->where('status', 'done')->count();
-    $totalStages = $stages->count();
+        if ($allStages->isEmpty()) {
+            return; // Không có công đoạn nào
+        }
 
-    if ($completedStages === $totalStages) {
-        // ✅ Tất cả công đoạn có set thời gian đã xong → Đơn hoàn thành
-        if ($order->status !== 'completed') {
-            $order->status = 'completed';
-            $order->completed_at = now();
-            $order->save();
-            \Log::info("Order #{$order->id} marked as completed");
+        // Đếm số công đoạn đã hoàn thành
+        $completedStages = $allStages->where('status', 'done')->count();
+        $totalStages = $allStages->count();
+
+        if ($completedStages === $totalStages) {
+            // ✅ Tất cả công đoạn đã xong → Đơn hoàn thành
+            if ($order->status !== 'completed') {
+                $order->status = 'completed';
+                $order->completed_at = now();
+                $order->save();
+                \Log::info("Order #{$order->id} marked as completed (all stages done)");
+            }
+        } else {
+            // ✅ Còn công đoạn chưa xong → Đơn đang làm
+            if ($order->status === 'completed') {
+                $order->status = 'in_progress';
+                $order->completed_at = null;
+                $order->save();
+            }
         }
     } else {
-        // ✅ Còn công đoạn có set thời gian chưa xong → Đơn đang làm
-        if ($order->status === 'completed') {
-            $order->status = 'in_progress';
-            $order->completed_at = null;
-            $order->save();
+        // ✅ TH2: Có công đoạn set thời gian → chỉ kiểm tra các công đoạn có thời gian
+        $completedStages = $stagesWithTime->where('status', 'done')->count();
+        $totalStages = $stagesWithTime->count();
+
+        if ($completedStages === $totalStages) {
+            // ✅ Tất cả công đoạn có set thời gian đã xong → Đơn hoàn thành
+            if ($order->status !== 'completed') {
+                $order->status = 'completed';
+                $order->completed_at = now();
+                $order->save();
+                \Log::info("Order #{$order->id} marked as completed (timed stages done)");
+            }
+        } else {
+            // ✅ Còn công đoạn có set thời gian chưa xong → Đơn đang làm
+            if ($order->status === 'completed') {
+                $order->status = 'in_progress';
+                $order->completed_at = null;
+                $order->save();
+            }
         }
     }
 }

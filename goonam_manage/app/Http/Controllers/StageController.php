@@ -55,8 +55,14 @@ class StageController extends Controller
         }
     }
 
-    // ✅ LOGIC MỚI: Kiểm tra xem TẤT CẢ công đoạn đã done chưa
-    $allStages = $order->stages()->where('is_skipped', false)->get();
+    // ✅ LOGIC MỚI: Chỉ kiểm tra các công đoạn có set thời gian
+    $allStages = $order->stages()
+        ->where('is_skipped', false)
+        ->where(function($q) {
+            $q->whereNotNull('planned_start')
+              ->orWhereNotNull('planned_end');
+        })
+        ->get();
 
     // ✅ Nếu KHÔNG có công đoạn nào → không thể hoàn thành đơn
     if ($allStages->isEmpty()) {
@@ -67,7 +73,7 @@ class StageController extends Controller
         return $stage->fresh();
     }
 
-    // ✅ Kiểm tra xem TẤT CẢ công đoạn (kể cả không có thời gian) đã done chưa
+    // ✅ Kiểm tra xem TẤT CẢ công đoạn có set thời gian đã done chưa
     $allDone = $allStages->every(fn($s) => $s->status === 'done');
 
     if ($allDone) {
@@ -86,7 +92,7 @@ class StageController extends Controller
 
         $history[] = [
             'editor' => $req->user()->name ?? 'Hệ thống',
-            'change' => '✅ Đơn hàng đã hoàn thành (tất cả công đoạn đã xong)',
+            'change' => '✅ Đơn hàng đã hoàn thành (tất cả công đoạn có set thời gian đã xong)',
             'date'   => now()->format('Y-m-d H:i:s'),
         ];
 
@@ -237,20 +243,25 @@ class StageController extends Controller
 }
 private function updateOrderStatus(Order $order)
 {
+    // ✅ Chỉ lấy các công đoạn có set thời gian
     $stages = $order->stages()
         ->where('is_skipped', false)
+        ->where(function($q) {
+            $q->whereNotNull('planned_start')
+              ->orWhereNotNull('planned_end');
+        })
         ->get();
 
     if ($stages->isEmpty()) {
-        return; // Không có công đoạn → không làm gì
+        return; // Không có công đoạn có thời gian → không làm gì
     }
 
-    // Đếm số công đoạn đã hoàn thành (status = 'done')
+    // Đếm số công đoạn có set thời gian đã hoàn thành (status = 'done')
     $completedStages = $stages->where('status', 'done')->count();
     $totalStages = $stages->count();
 
     if ($completedStages === $totalStages) {
-        // ✅ Tất cả công đoạn đã xong → Đơn hoàn thành
+        // ✅ Tất cả công đoạn có set thời gian đã xong → Đơn hoàn thành
         if ($order->status !== 'completed') {
             $order->status = 'completed';
             $order->completed_at = now();
@@ -258,7 +269,7 @@ private function updateOrderStatus(Order $order)
             \Log::info("Order #{$order->id} marked as completed");
         }
     } else {
-        // ✅ Còn công đoạn chưa xong → Đơn đang làm
+        // ✅ Còn công đoạn có set thời gian chưa xong → Đơn đang làm
         if ($order->status === 'completed') {
             $order->status = 'in_progress';
             $order->completed_at = null;

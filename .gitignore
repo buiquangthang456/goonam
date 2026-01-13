@@ -1,0 +1,49 @@
+####################################
+# LARAVEL
+####################################
+backend-laravel/vendor/
+backend-laravel/node_modules/
+backend-laravel/.env
+backend-laravel/.env.*
+backend-laravel/storage/*.key
+backend-laravel/storage/framework/cache/*
+backend-laravel/storage/framework/sessions/*
+backend-laravel/storage/framework/views/*
+backend-laravel/bootstrap/cache/*
+
+####################################
+# FLUTTER
+####################################
+app-flutter/build/
+app-flutter/.dart_tool/
+app-flutter/.pub-cache/
+app-flutter/android/.gradle/
+app-flutter/android/local.properties
+app-flutter/ios/Pods/
+app-flutter/ios/.symlinks/
+app-flutter/ios/Flutter/Flutter.framework
+app-flutter/ios/Flutter/Flutter.podspec
+
+####################################
+# ANDROID / IOS
+####################################
+*.apk
+*.aab
+*.ipa
+
+####################################
+# IDE / OS
+####################################
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+####################################
+# LOG / CACHE
+####################################
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

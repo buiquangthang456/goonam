@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "755058294755",
+    "project_id": "goonam-2b3a5",
+    "storage_bucket": "goonam-2b3a5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:755058294755:android:11eb96920766395de42ad6",
+        "android_client_info": {
+          "package_name": "com.example.goonam_manage_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAsk0_CR3_Y75I0B11qlg63b4aroUWBN70"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
